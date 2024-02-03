@@ -1,0 +1,37 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.6.33829.357
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "quiz web app", "quiz web app.csproj", "{DFEA4060-BE94-4A19-B16F-9C71C240CDA1}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Internal", "..\Internal\Internal.csproj", "{FC05E2D0-848E-4502-84E5-EEE9F17C5CA6}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Core", "..\Core\Core.csproj", "{8D5AD3B6-3CDB-4642-903B-A256BCA45172}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{DFEA4060-BE94-4A19-B16F-9C71C240CDA1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DFEA4060-BE94-4A19-B16F-9C71C240CDA1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DFEA4060-BE94-4A19-B16F-9C71C240CDA1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DFEA4060-BE94-4A19-B16F-9C71C240CDA1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FC05E2D0-848E-4502-84E5-EEE9F17C5CA6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FC05E2D0-848E-4502-84E5-EEE9F17C5CA6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FC05E2D0-848E-4502-84E5-EEE9F17C5CA6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FC05E2D0-848E-4502-84E5-EEE9F17C5CA6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8D5AD3B6-3CDB-4642-903B-A256BCA45172}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8D5AD3B6-3CDB-4642-903B-A256BCA45172}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8D5AD3B6-3CDB-4642-903B-A256BCA45172}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8D5AD3B6-3CDB-4642-903B-A256BCA45172}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {49801209-E1ED-4F6E-866E-AB9C5427B25F}
+	EndGlobalSection
+EndGlobal
