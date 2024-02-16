@@ -1,4 +1,6 @@
-﻿using quiz_web_app.Data;
+﻿using MassTransit;
+using quiz_web_app.Data;
+using quiz_web_app.Infrastructure.Consumers.QuizCreatedEventConsumer;
 
 namespace quiz_web_app.Services.BackgroundServices
 {
@@ -7,6 +9,7 @@ namespace quiz_web_app.Services.BackgroundServices
         private readonly ILogger<RemoveUnacceptUsers> _logger;
         private readonly TimeSpan _waitTime;
         private readonly IServiceProvider _serviceProvider;
+
         public RemoveUnacceptUsers(
             ILogger<RemoveUnacceptUsers> logger,
             IServiceProvider serviceProvider

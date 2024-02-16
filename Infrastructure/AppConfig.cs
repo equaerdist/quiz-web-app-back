@@ -20,5 +20,8 @@
         public string Gateway { get; set; } = null!;
         public string Region { get; set; } = null!;
         public string catalogId { get; set; } = null!;
+        public string RabbitHost { get; set; } = null!;
+        public string RabbitPassword { get; set; } = null!;
+        public string RabbitUser { get; set; } = null!; 
     }
 }

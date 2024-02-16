@@ -11,6 +11,7 @@ namespace quiz_web_app.Infrastructure.MapperProfiles
         {
             #region Пользовательские
             CreateMap<UserDto, User>();
+            CreateMap<User, GetUserDto>();
             #endregion
             #region создание квиза
             CreateMap<CreateQuizCardDto, QuizCard>().ForMember(x => x.Questions, opt => opt.Ignore());
@@ -19,6 +20,8 @@ namespace quiz_web_app.Infrastructure.MapperProfiles
             #endregion
             #region получение квизов
             CreateMap<Quiz, GetQuizDto>();
+            CreateMap<QuizCard, GetQuizCardDto>();
+            CreateMap<QuizQuestion, GetQuestionDto>();
             #endregion
         }
     }

@@ -40,7 +40,6 @@ namespace quiz_web_app.Infrastructure.Middlewares
             }
             catch(Exception ex)
             {
-                Console.WriteLine(ex.Message);
                 var problemDetails = new ProblemDetails();
                 problemDetails.Status = StatusCodes.Status500InternalServerError;
                 problemDetails.Title = "Возникла ошибка при выполнении операции";

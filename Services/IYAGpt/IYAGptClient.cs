@@ -10,14 +10,16 @@ namespace quiz_web_app.Services.IYAGpt
     {
         private readonly HttpClient _client;
         private readonly AppConfig _cfg;
+        private readonly ILogger<YAGptClient> _logger;
         private readonly string _url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion";
 
         private readonly Regex _pattrn = MyRegex();
 
-        public YAGptClient(HttpClient client, AppConfig cfg)
+        public YAGptClient(HttpClient client, AppConfig cfg, ILogger<YAGptClient> logger)
         {
             _client = client;
             _cfg = cfg;
+            _logger = logger;
         }
         public async Task<string> GetCategoryAsync(string text)
         {
@@ -39,7 +41,7 @@ namespace quiz_web_app.Services.IYAGpt
                             Text = "Тебе дается массив карточек, карточка содержит сам вопрос и ответы на него. " +
                             "Определи категорию к которым относятся карточки из данных категорий. " +
                             "Если ни одна из данных не подходит верни Разное" +
-                            "Ответ должен быть в виде: <Навзание категории>. Ничего лишнего не пиши" +
+                            "Ответ должен быть в виде: «Навзание категории». Ничего лишнего не пиши. Вот пример ответ: «История»" +
                             ".1. Общекультурные знания: i. История ii. География iii. Культура и искусство iv. Литература 2. Наука и технологии: i. Физика ii. Химия iii. Биология iv. Технологии 3. Развлечения: i. Кино и телевидение ii. Музыка iii. Игры iv. Литература (художественная, фантастика и т.д.) 4. Спорт: i. Футбол ii. Баскетбол iii. Олимпийские виды iv. Экстримальные виды спорта 5. Текущие события: i. Политика ii. Новости iii. Актуальные события 6. Общество и отношения: i  Психология ii. Межличностные отношения iii. Общественные явления 7. Природа и экология: i. Экосистемы ii. Охрана окружающей среды iii. Животный мир 8. Технические знания: i. Информационные технологии ii. Программирование iii. Электроника 9.Кулинария и еда:i. Мировая кухня ii. Гастрономия iii Кулинарные традиции 10. Мировые культуры: i. Традиции различных народов ii. Религии iii. Этнография"
                         },
                         new()
@@ -64,6 +66,8 @@ namespace quiz_web_app.Services.IYAGpt
 
             var dirtyCategory =  result.Alternatives.FirstOrDefault()?.Message.Text ?? throw new ArgumentNullException();
             var match = _pattrn.Match(dirtyCategory);
+
+            _logger.LogInformation($"Ответ от сервиса YandexGPT был {dirtyCategory}");
 
             if (!match.Success)
                 throw new ArgumentException("Пришел некорректный ответ");

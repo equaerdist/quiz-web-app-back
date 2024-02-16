@@ -2,9 +2,12 @@
 using Core.Models;
 using FluentEmail.Core;
 using Internal;
+using MassTransit;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using quiz_web_app.Data;
+using quiz_web_app.Infrastructure.Consumers.QuizCreatedEventConsumer;
 using quiz_web_app.Infrastructure.Exceptions;
 using quiz_web_app.Models;
 using quiz_web_app.Services.IYAGpt;
@@ -18,14 +21,14 @@ namespace quiz_web_app.Controllers
         private readonly QuizAppContext _ctx;
         private readonly IMapper _mapper;
         private readonly IWebHostEnvironment _env;
-        private readonly IYAGpt _gpt;
+        private readonly IBus _bus;
 
-        public QuizController(QuizAppContext ctx, IMapper mapper, IWebHostEnvironment env, IYAGpt gpt) 
+        public QuizController(QuizAppContext ctx, IMapper mapper, IWebHostEnvironment env, IBus bus) 
         {
             _ctx = ctx;
             _mapper = mapper;
             _env = env;
-            _gpt = gpt;
+            _bus = bus;
         }
         [HttpGet]
         public async Task<IEnumerable<GetQuizDto>> GetQuizes(int page, int pageSize, string sortParam,  string sortOrder)
@@ -39,8 +42,11 @@ namespace quiz_web_app.Controllers
             for(var i=0; i < quizes.Count; i++)
             {
                 var quiz = quizes[i];
-                var completedQuizes = _ctx.CompletedQuizes.Where(c => c.QuizId == quiz.Id && c.Raiting != null).DistinctBy(u => u.UserId);
-                result[i].Raiting = await completedQuizes.AverageAsync(c => c.Raiting) ?? 0;
+                var completedQuizes = _ctx.CompletedQuizes
+                    .Where(q => q.QuizId == quiz.Id && q.Raiting != null)
+                    .GroupBy(q => q.UserId)
+                    .Select(q => q.First().Raiting);
+                result[i].Raiting = completedQuizes.Average() ?? 0;
             }
             return result;
         }
@@ -53,6 +59,7 @@ namespace quiz_web_app.Controllers
             var result = _mapper.Map<GetQuizDto>(quizDb);
             return result;
         }
+        [Authorize]
         [HttpPost]
         public async Task<IActionResult> CreateQuiz(CreateQuizDto dto)
         {
@@ -97,13 +104,12 @@ namespace quiz_web_app.Controllers
             quizDb.Thumbnail = imgPath;
             quizDb.QuizCards = cardsListDb;
             quizDb.QuestionsAmount = cardsListDb.Count;
-            quizDb.Category = await _gpt.GetCategoryAsync(Newtonsoft.Json.JsonConvert.SerializeObject(new { Cards = dto.Cards}));
             quizDb.Creator = userDb;
             quizDb.Mode = (AccessType)dto.Mode;
-
+            quizDb.Category = "N/A";
             await _ctx.Quizes.AddAsync(quizDb);
             await _ctx.SaveChangesAsync();
-
+            await _bus.Publish(new QuizCreatedEvent() { Id = quizDb.Id });
             var quizReadDto = _mapper.Map<GetQuizDto>(quizDb);
             return CreatedAtRoute(nameof(GetQuiz), new { id = quizDb.Id }, quizReadDto);
         }

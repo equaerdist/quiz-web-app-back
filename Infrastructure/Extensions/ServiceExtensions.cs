@@ -1,5 +1,4 @@
-﻿
-using Amazon.Runtime;
+﻿using Amazon.Runtime;
 using Amazon.Runtime.CredentialManagement;
 using Amazon.S3;
 using FluentValidation;
@@ -17,6 +16,11 @@ using quiz_web_app.Services.IYAGpt;
 using System.Net;
 using System.Net.Mail;
 using System.Text;
+using MassTransit;
+using RabbitMQ.Client;
+using quiz_web_app.Infrastructure.Consumers.QuizCreatedEventConsumer;
+using quiz_web_app.Infrastructure.Consumers.UserRegisteredEventConsumer;
+using GreenPipes;
 
 namespace quiz_web_app.Infrastructure.Extensions
 {
@@ -68,7 +72,6 @@ namespace quiz_web_app.Infrastructure.Extensions
             services.AddFluentEmail(config.EmailUsername, "quiz mesh application")
                             .AddRazorRenderer()
                             .AddSmtpSender(smtpClient);
-
             return services.AddSingleton(config)
                             .AddScoped<ITokenDistributor, TokenDistributor>()
                             .AddDbContext<QuizAppContext>()
@@ -79,7 +82,23 @@ namespace quiz_web_app.Infrastructure.Extensions
                             .AddScoped<IEmailService, EmailService>()
                             .AddSingleton<IAmazonS3>(opt => new AmazonS3Client(credentials))
                             .AddScoped<IYAGpt, YAGptClient>()
-                            .AddHttpClient();
+                            .AddHttpClient()
+                            .AddMassTransit(opt =>
+                            {
+                                opt.SetKebabCaseEndpointNameFormatter();
+                                opt.AddConsumer<QuizCreatedEventConsumer>(x => x.UseMessageRetry(t => t.Interval(2, 700)));
+                                opt.AddConsumer<UserRegisteredEventConsumer>(x => x.UseMessageRetry(t => t.Interval(2, 1000)));
+                                opt.UsingRabbitMq((ctx, cfg) =>
+                                {
+                                    cfg.Host(config.RabbitHost, h =>
+                                    {
+                                        h.Username(config.RabbitUser);
+                                        h.Password(config.RabbitPassword);
+                                    });
+                                   
+                                    cfg.ConfigureEndpoints(ctx);
+                                });
+                            }).AddMassTransitHostedService();
         }
         public static IServiceCollection AddValidation(this IServiceCollection services)
         {

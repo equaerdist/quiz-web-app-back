@@ -2,12 +2,14 @@
 using FluentEmail.Core;
 using FluentValidation;
 using Internal;
+using MassTransit;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using quiz_web_app.Data;
 using quiz_web_app.Infrastructure;
+using quiz_web_app.Infrastructure.Consumers.UserRegisteredEventConsumer;
 using quiz_web_app.Infrastructure.Exceptions;
 using quiz_web_app.Infrastructure.Templates;
 using quiz_web_app.Models;
@@ -36,7 +38,7 @@ namespace quiz_web_app.Controllers
         private readonly QuizAppContext _ctx;
         private readonly IMapper _mapper;
         private readonly IHasher _hasher;
-        private readonly IEmailService _email;
+        private readonly IBus _bus;
 
         public AuthController(ILogger<AuthController> logger,
             ITokenDistributor tdk,
@@ -44,7 +46,7 @@ namespace quiz_web_app.Controllers
             QuizAppContext ctx,
             IMapper mapper,
             IHasher hasher,
-            IEmailService email)
+            IBus bus)
         {
             _logger = logger;
             _tdk = tdk;
@@ -52,7 +54,7 @@ namespace quiz_web_app.Controllers
             _ctx = ctx;
             _mapper = mapper;
             _hasher = hasher;
-            _email = email;
+            _bus = bus;
         }
         [HttpPost("register")]
         public async Task<IActionResult> GetRegisterAsync(UserDto information)
@@ -69,7 +71,7 @@ namespace quiz_web_app.Controllers
             userForDb.Password = await hashedPasswordTask;
             await _ctx.Users.AddAsync(userForDb);
             await _ctx.SaveChangesAsync();
-            var pathForAccept = $"{Request.Scheme}://{Request.Host}/api/auth/accept?id={userForDb.Id.ToString()}";
+            var pathForAccept = $"{Request.Scheme}://{Request.Host}/api/auth/accept?id={userForDb.Id}";
             var emailOptions = new EmailOptions
                 (
                     "Подтверждение аккаунта",
@@ -85,11 +87,11 @@ namespace quiz_web_app.Controllers
                             pathForAccept
                         )
                 );
-            await _email.SendAsync(emailOptions);
+            await _bus.Publish(new UserRegisteredEvent() { EmailOptions = emailOptions });
             return Ok("Подтвердите почту для активации аккаунта");
         }
 
-        [HttpGet("token")]
+        [HttpPost("token")]
         public async Task<IActionResult> GetToken(UserDto information)
         {
             var user = await _ctx.Users.FirstOrDefaultAsync(u => u.Login.Equals(information.Login)).ConfigureAwait(false);
@@ -116,5 +118,8 @@ namespace quiz_web_app.Controllers
             await _ctx.SaveChangesAsync();
             return Ok($"Аккаунт для пользователя {user.Login} успешно активирован");
         }
+        [Authorize]
+        [HttpGet("check")]
+        public IActionResult CheckAuth() => Ok();
     }
 }

@@ -65,6 +65,7 @@ namespace quiz_web_app.Controllers
             await _ctx.SaveChangesAsync();
             return Ok(image.Url);
         }
+        [ResponseCache(Duration = 86_400, Location = ResponseCacheLocation.Client)]
         [HttpGet("{path}")]
         public async Task<IActionResult> GetFile(string path)
         {

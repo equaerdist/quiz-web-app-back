@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using quiz_web_app.Infrastructure;
 using quiz_web_app.Models;
+using Serilog;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace quiz_web_app.Data
@@ -25,10 +26,9 @@ namespace quiz_web_app.Data
         {
             optionsBuilder.UseNpgsql(_cfg.ConnectionString, options =>
             {
-                options.EnableRetryOnFailure(1)
-                ;
-
+                options.EnableRetryOnFailure(1);
             });
+            optionsBuilder.UseLoggerFactory(LoggerFactory.Create(x => x.AddConsole()));
         }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
