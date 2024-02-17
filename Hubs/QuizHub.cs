@@ -1,6 +1,7 @@
 ﻿using Amazon.S3.Model;
 using Core.Models;
 using MassTransit;
+using MassTransit.Logging;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -139,7 +140,7 @@ namespace quiz_web_app.Hubs
             await Clients.User(currentUser.Id.ToString()).ReceiveMessage(invitedMessage);
             await Clients.User(inviterUser.Id.ToString()).ReceiveMessage(inviterMessage);
         }
-        private async Task HandleGroupOfRandoms(EnterQueueInfo info)
+        private async Task<List<UserQuizSessionInfo>?> HandleGroupOfRandoms(EnterQueueInfo info)
         {
             var currentLock = info.PeopleAmount == 2 ? _twoPeopleQueue :
             info.PeopleAmount == 3 ? _threePeopleQueue : _fourPeopleQueue;
@@ -158,8 +159,8 @@ namespace quiz_web_app.Hubs
                 var redisQueue = new RedisQueue() { Users = new() { currentUser } };
                 queue = JsonConvert.SerializeObject(redisQueue);
                 await _cache.SetStringAsync(currentLock, queue);
+                return null;
             }
-
             else
             {
                 var redisQueue = JsonConvert.DeserializeObject<RedisQueue>(queue)!;
@@ -170,7 +171,7 @@ namespace quiz_web_app.Hubs
                     CurrentQueue = currentLock, 
                     CurrentUser = currentUser 
                 };
-                await HandleQueue(parameters);
+                return await HandleQueue(parameters);
             }
         }
         private async Task<List<UserQuizSessionInfo>?> HandleQueue(QueueParameters p)
@@ -192,6 +193,8 @@ namespace quiz_web_app.Hubs
                             CompetitiveType = p.Info.CompetitiveType,
                             UserId = p.CurrentUser,
                             Fulfilled = false,
+                            Score = 0,
+                            StartTime = DateTime.UtcNow
                         }
                     };
                     await _cache.SetStringAsync(user.ToString(), JsonConvert.SerializeObject(userResult));
@@ -213,6 +216,7 @@ namespace quiz_web_app.Hubs
                 throw new ArgumentException(nameof(info.PeopleAmount));
             if (info.PeopleAmount > 1 && info.CompetitiveType != CompetitiveType.Multi)
                 throw new HubException();
+            List<UserQuizSessionInfo>? sessions = null;
             if (!info.WithGroup)
             {
                 if (info.PeopleAmount != 1)

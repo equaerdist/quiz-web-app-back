@@ -90,7 +90,7 @@ namespace quiz_web_app.Data
             modelBuilder.Entity<CardAnswer>()   
                 .HasKey(ca => new { ca.CompletedId, ca.CardId });
 
-            modelBuilder.Entity<Completed>().HasKey(c => new { c.QuizId, c.UserId, c.EndTime });
+            modelBuilder.Entity<Completed>().HasKey(c => new { c.QuizId, c.UserId, c.StartTime });
         }
     }
 }
