@@ -23,6 +23,8 @@ using GreenPipes;
 using StackExchange.Redis;
 using Microsoft.AspNetCore.SignalR;
 using quiz_web_app.Hubs;
+using RedLockNet.SERedis;
+using RedLockNet.SERedis.Configuration;
 
 namespace quiz_web_app.Infrastructure.Extensions
 {
@@ -90,6 +92,15 @@ namespace quiz_web_app.Infrastructure.Extensions
                             {
                                 conf.ConfigurationOptions = ConfigurationOptions.Parse(config.RedisString);
                             })
+                            .AddSingleton<RedLockFactory>(
+                                 opt => RedLockFactory.Create(
+                                    new List<RedLockMultiplexer>()
+                                    {
+                                        opt.GetRequiredService<ConnectionMultiplexer>()
+                                    }
+                                )
+                            )
+                            .AddSingleton<IConnectionMultiplexer>(opt => ConnectionMultiplexer.Connect(config.RedisString))
                             .AddMassTransit(opt =>
                             {
                                 opt.SetKebabCaseEndpointNameFormatter();
