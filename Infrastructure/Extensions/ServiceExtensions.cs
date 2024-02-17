@@ -17,10 +17,12 @@ using System.Net;
 using System.Net.Mail;
 using System.Text;
 using MassTransit;
-using RabbitMQ.Client;
 using quiz_web_app.Infrastructure.Consumers.QuizCreatedEventConsumer;
 using quiz_web_app.Infrastructure.Consumers.UserRegisteredEventConsumer;
 using GreenPipes;
+using StackExchange.Redis;
+using Microsoft.AspNetCore.SignalR;
+using quiz_web_app.Hubs;
 
 namespace quiz_web_app.Infrastructure.Extensions
 {
@@ -76,6 +78,7 @@ namespace quiz_web_app.Infrastructure.Extensions
                             .AddScoped<ITokenDistributor, TokenDistributor>()
                             .AddDbContext<QuizAppContext>()
                             .AddValidation()
+                            .AddSingleton<IUserIdProvider, CustomUserIdProvider>()
                             .AddTransient<GlobalExceptionHandler>()
                             .AddAutoMapper(typeof(MapperProfiles.MapperProfiles))
                             .AddSingleton<IHasher, Hasher>()
@@ -83,6 +86,10 @@ namespace quiz_web_app.Infrastructure.Extensions
                             .AddSingleton<IAmazonS3>(opt => new AmazonS3Client(credentials))
                             .AddScoped<IYAGpt, YAGptClient>()
                             .AddHttpClient()
+                            .AddStackExchangeRedisCache(conf =>
+                            {
+                                conf.ConfigurationOptions = ConfigurationOptions.Parse(config.RedisString);
+                            })
                             .AddMassTransit(opt =>
                             {
                                 opt.SetKebabCaseEndpointNameFormatter();

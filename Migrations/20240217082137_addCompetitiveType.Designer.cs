@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using quiz_web_app.Data;
@@ -11,9 +12,11 @@ using quiz_web_app.Data;
 namespace quizwebapp.Migrations
 {
     [DbContext(typeof(QuizAppContext))]
-    partial class QuizAppContextModelSnapshot : ModelSnapshot
+    [Migration("20240217082137_addCompetitiveType")]
+    partial class addCompetitiveType
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -88,20 +91,6 @@ namespace quizwebapp.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("CompletedQuizes");
-                });
-
-            modelBuilder.Entity("Core.Models.Group", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("Playing")
-                        .HasColumnType("boolean");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Groups");
                 });
 
             modelBuilder.Entity("Core.Models.Image", b =>
@@ -287,9 +276,6 @@ namespace quizwebapp.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid>("GroupId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("Login")
                         .IsRequired()
                         .HasColumnType("text");
@@ -297,9 +283,6 @@ namespace quizwebapp.Migrations
                     b.Property<string>("Password")
                         .IsRequired()
                         .HasColumnType("text");
-
-                    b.Property<bool>("Playing")
-                        .HasColumnType("boolean");
 
                     b.Property<string>("Thumbnail")
                         .IsRequired()
@@ -309,8 +292,6 @@ namespace quizwebapp.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("GroupId");
 
                     b.ToTable("users", (string)null);
                 });
@@ -422,25 +403,9 @@ namespace quizwebapp.Migrations
                     b.Navigation("Creator");
                 });
 
-            modelBuilder.Entity("quiz_web_app.Models.User", b =>
-                {
-                    b.HasOne("Core.Models.Group", "Group")
-                        .WithMany("Members")
-                        .HasForeignKey("GroupId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Group");
-                });
-
             modelBuilder.Entity("Core.Models.Completed", b =>
                 {
                     b.Navigation("Answers");
-                });
-
-            modelBuilder.Entity("Core.Models.Group", b =>
-                {
-                    b.Navigation("Members");
                 });
 
             modelBuilder.Entity("Core.Models.QuizCard", b =>

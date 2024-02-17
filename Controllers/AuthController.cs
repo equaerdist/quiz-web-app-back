@@ -103,7 +103,8 @@ namespace quiz_web_app.Controllers
             var claims = new List<Claim>()
             { 
                 new Claim("Confirmed", user.Accepted ? "True" : "False"),
-                new Claim("Login", user.Login)
+                new Claim("Login", user.Login),
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString())
             };
             var token = _tdk.GetToken(claims);
             Response.Cookies.Append("Authorization", token, new() { Expires = DateTime.Now.AddDays(1), HttpOnly = true });

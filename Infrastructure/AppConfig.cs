@@ -23,5 +23,6 @@
         public string RabbitHost { get; set; } = null!;
         public string RabbitPassword { get; set; } = null!;
         public string RabbitUser { get; set; } = null!; 
+        public string RedisString { get; set; } = null!;
     }
 }

@@ -16,6 +16,7 @@ namespace quiz_web_app.Data
         public DbSet<Quiz> Quizes { get; set; } = null!;
         public DbSet<QuizCard> QuizCards { get; set; } = null!;
         public DbSet<QuizQuestion> QuizQuestions { get; set; } = null!;
+        public DbSet<Group> Groups { get; set; } = null!;
 
         public QuizAppContext(AppConfig cfg) 
         {
