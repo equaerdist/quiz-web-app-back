@@ -5,6 +5,7 @@ using FluentEmail.Core;
 using Internal;
 using MassTransit;
 using MassTransit.Logging;
+using MassTransit.NewIdProviders;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -226,6 +227,15 @@ namespace quiz_web_app.Hubs
                 return null;
             }
         }
+        public async Task CheckMyQuestion(CheckAnswerInfo info)
+        {
+            var answerInfo = new AnswerInfo();
+            var userSessionQuizInfo = await _cache.GetStringAsync(Context.UserIdentifier!);
+            if (userSessionQuizInfo is null)
+                throw new HubException();
+            var userSession = JsonConvert.DeserializeObject<UserQuizSessionInfo>(userSessionQuizInfo)!;
+            var quiz = await _quizes.GetByIdAsync(userSession.Result.QuizId);
+        }
         private async Task SendAnswerToUser(Guid userId)
         {
             var userQuizSession = await _cache.GetStringAsync(userId.ToString());
@@ -241,7 +251,7 @@ namespace quiz_web_app.Hubs
             else
             {
                 var quizCard = quizDto.QuizCards.Skip(completed.Answers.Count).Take(1).First();
-                await Clients.User(userId.ToString()).ReceiveAnswer(quizCard);
+                await Clients.User(userId.ToString()).ReceiveQuestion(quizCard);
             }
         }
         private async Task UserCompleteQuiz()

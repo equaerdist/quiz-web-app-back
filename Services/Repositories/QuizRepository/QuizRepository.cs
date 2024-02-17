@@ -39,6 +39,7 @@ namespace quiz_web_app.Services.Repositories.QuizRepository
                .Where(t => t.Mode == AccessType.Public)
                .Skip((page - 1) * pageSize)
                .Take(pageSize)
+               .Include(q => q.QuizCards)
                .ToListAsync();
 
             return quizes;
@@ -47,14 +48,16 @@ namespace quiz_web_app.Services.Repositories.QuizRepository
         public async Task<Quiz> GetByIdAsync(Guid id)
         {
             var cacheKey = $"{_cfg.QuizCachePrefix}{id.ToString()}";
-            var quizDbString = await _cache.GetStringAsync();
+            var quizDbString = await _cache.GetStringAsync(cacheKey);
             if(quizDbString is not null)
                 return JsonConvert.DeserializeObject<Quiz>(quizDbString)!;
-            var quizDb = await _ctx.Quizes.FirstOrDefaultAsync(q => q.Id == id && q.Mode == AccessType.Public)
+            var quizDb = await _ctx.Quizes
+                .Include(q => q.QuizCards)
+                .FirstOrDefaultAsync(q => q.Id == id && q.Mode == AccessType.Public)
                 .ConfigureAwait(false);
-            _cache.SetStringAsync()
             if (quizDb is null)
                 throw new BaseQuizAppException("Такого квиза не существует");
+            await _cache.SetStringAsync(cacheKey, JsonConvert.SerializeObject(quizDb));
             return quizDb;
         }
     }
