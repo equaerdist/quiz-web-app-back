@@ -24,5 +24,7 @@
         public string RabbitPassword { get; set; } = null!;
         public string RabbitUser { get; set; } = null!; 
         public string RedisString { get; set; } = null!;
+        public string QuizCardCachePrefix { get; set; } = "quizCard_";
+        public string QuizCachePrefix { get; set; } = "quiz_";
     }
 }

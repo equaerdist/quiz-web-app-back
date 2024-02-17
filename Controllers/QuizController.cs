@@ -11,6 +11,7 @@ using quiz_web_app.Infrastructure.Consumers.QuizCreatedEventConsumer;
 using quiz_web_app.Infrastructure.Exceptions;
 using quiz_web_app.Models;
 using quiz_web_app.Services.IYAGpt;
+using quiz_web_app.Services.Repositories.QuizRepository;
 using System.IO;
 namespace quiz_web_app.Controllers
 {
@@ -22,22 +23,20 @@ namespace quiz_web_app.Controllers
         private readonly IMapper _mapper;
         private readonly IWebHostEnvironment _env;
         private readonly IBus _bus;
+        private readonly IQuizRepository _quizes;
 
-        public QuizController(QuizAppContext ctx, IMapper mapper, IWebHostEnvironment env, IBus bus) 
+        public QuizController(QuizAppContext ctx, IMapper mapper, IWebHostEnvironment env, IBus bus, IQuizRepository quizes) 
         {
             _ctx = ctx;
             _mapper = mapper;
             _env = env;
             _bus = bus;
+            _quizes = quizes; 
         }
         [HttpGet]
         public async Task<IEnumerable<GetQuizDto>> GetQuizes(int page, int pageSize, string sortParam,  string sortOrder)
         {
-            var quizes = await _ctx.Quizes
-                .Where(t => t.Mode == AccessType.Public)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
+            var quizes = await _quizes.GetAsync(sortParam, sortOrder, page, pageSize, string.Empty);
             var result = _mapper.Map<List<GetQuizDto>>(quizes);
             for(var i=0; i < quizes.Count; i++)
             {
@@ -53,7 +52,7 @@ namespace quiz_web_app.Controllers
         [HttpGet("{id:guid}", Name = nameof(GetQuiz))]
         public async Task<GetQuizDto> GetQuiz(Guid id)
         {
-            var quizDb = await _ctx.Quizes.FirstOrDefaultAsync(q => q.Id == id && q.Mode == AccessType.Public).ConfigureAwait(false);
+            var quizDb = await _quizes.GetByIdAsync(id).ConfigureAwait(false);
             if (quizDb is null)
                 throw new BaseQuizAppException("Такого квиза не существует");
             var result = _mapper.Map<GetQuizDto>(quizDb);

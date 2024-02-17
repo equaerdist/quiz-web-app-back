@@ -1,5 +1,8 @@
 ﻿using Amazon.S3.Model;
+using AutoMapper;
 using Core.Models;
+using FluentEmail.Core;
+using Internal;
 using MassTransit;
 using MassTransit.Logging;
 using Microsoft.AspNetCore.Authorization;
@@ -8,7 +11,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Newtonsoft.Json;
 using quiz_web_app.Data;
+using quiz_web_app.Infrastructure;
 using quiz_web_app.Models;
+using quiz_web_app.Services.Repositories.QuizRepository;
 using RedLockNet.SERedis;
 
 namespace quiz_web_app.Hubs
@@ -19,6 +24,9 @@ namespace quiz_web_app.Hubs
         private readonly QuizAppContext _ctx;
         private readonly IDistributedCache _cache;
         private readonly RedLockFactory _redLock;
+        private readonly AppConfig _cfg;
+        private readonly IMapper _mapper;
+        private readonly IQuizRepository _quizes;
         private readonly TimeSpan _inviteAvailableTime = TimeSpan.FromMinutes(5);
         private static readonly string _twoPeopleQueue = "queue_quiz_2";
         private static readonly string _threePeopleQueue = "queue_quiz_3";
@@ -26,11 +34,19 @@ namespace quiz_web_app.Hubs
         private static readonly TimeSpan _lockTime = TimeSpan.FromSeconds(1);
         private static readonly TimeSpan _wait = TimeSpan.FromSeconds(10);
         private static readonly TimeSpan _retry = TimeSpan.FromSeconds(1);
-        public QuizHub(QuizAppContext ctx, IDistributedCache cache, RedLockFactory redLock) 
+        public QuizHub(QuizAppContext ctx, 
+            IDistributedCache cache, 
+            RedLockFactory redLock,
+            AppConfig cfg,
+            IMapper mapper,
+            IQuizRepository quizes) 
         {
             _ctx = ctx;
             _cache = cache;
             _redLock = redLock;
+            _cfg = cfg;
+            _mapper = mapper;
+            _quizes = quizes;
         }
         public override Task OnConnectedAsync()
         {
@@ -210,6 +226,28 @@ namespace quiz_web_app.Hubs
                 return null;
             }
         }
+        private async Task SendAnswerToUser(Guid userId)
+        {
+            var userQuizSession = await _cache.GetStringAsync(userId.ToString());
+            if (userQuizSession is null)
+                throw new ArgumentNullException(nameof(userQuizSession));
+            var quizSession = JsonConvert.DeserializeObject<UserQuizSessionInfo>(userQuizSession)!;
+            var completed = quizSession.Result;
+
+            var quiz = await _quizes.GetByIdAsync(completed.QuizId);
+            var quizDto = _mapper.Map<GetQuizDto>(quiz);
+            if (quizDto.QuestionsAmount == completed.Answers.Count)
+                await UserCompleteQuiz();
+            else
+            {
+                var quizCard = quizDto.QuizCards.Skip(completed.Answers.Count).Take(1).First();
+                await Clients.User(userId.ToString()).ReceiveAnswer(quizCard);
+            }
+        }
+        private async Task UserCompleteQuiz()
+        {
+            throw new NotImplementedException();
+        }
         public async Task GoToQueue(EnterQueueInfo info)
         {
             if (info.PeopleAmount < 1)
@@ -220,7 +258,7 @@ namespace quiz_web_app.Hubs
             if (!info.WithGroup)
             {
                 if (info.PeopleAmount != 1)
-                    await HandleGroupOfRandoms(info);
+                    sessions = await HandleGroupOfRandoms(info);
                 else
                 {
                     if (!Guid.TryParse(Context.UserIdentifier, out var currentUser))
@@ -233,7 +271,7 @@ namespace quiz_web_app.Hubs
                         CurrentUser = currentUser,
                         Queue = redisQueue
                     };
-                    await HandleQueue(param);
+                    sessions = await HandleQueue(param);
                 }
             }
             else
@@ -242,6 +280,18 @@ namespace quiz_web_app.Hubs
                 if (user is null)
                     throw new HubException();
                 var usersExceptCurrent = user.Group?.Members.Select(u => u.Id).Where(u => !u.Equals(user.Id)).ToList();
+                using var redLock = await _redLock.CreateLockAsync(user.GroupId.ToString(), _lockTime);
+                if (!redLock.IsAcquired)
+                {
+                    var message = new Message()
+                    { 
+                        Type = MessageType.Error, 
+                        Content = "Кто-то уже начал игру в группе"
+                    };
+
+                    await Clients.Caller.ReceiveMessage(message);
+                    return;
+                }
                 if (usersExceptCurrent is null)
                     throw new HubException();
                 var param = new QueueParameters()
@@ -251,8 +301,10 @@ namespace quiz_web_app.Hubs
                     Queue = new() { Users = usersExceptCurrent },
                     CurrentQueue = string.Empty
                 };
-                await HandleQueue(param);
+                sessions = await HandleQueue(param);
             }
+            if (sessions is not null)
+                sessions.Select(u => u.Result.UserId).ForEach(async id => await SendAnswerToUser(id));
         }
 
         public override Task OnDisconnectedAsync(Exception? exception)
