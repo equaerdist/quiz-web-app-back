@@ -29,6 +29,7 @@ namespace quiz_web_app.Hubs
         private readonly AppConfig _cfg;
         private readonly IMapper _mapper;
         private readonly IQuizRepository _quizes;
+        private readonly ILogger<QuizHub> _logger;
         private readonly TimeSpan _inviteAvailableTime = TimeSpan.FromMinutes(5);
         private static readonly string _twoPeopleQueue = "queue_quiz_2";
         private static readonly string _threePeopleQueue = "queue_quiz_3";
@@ -41,7 +42,8 @@ namespace quiz_web_app.Hubs
             RedLockFactory redLock,
             AppConfig cfg,
             IMapper mapper,
-            IQuizRepository quizes) 
+            IQuizRepository quizes,
+            ILogger<QuizHub> logger) 
         {
             _ctx = ctx;
             _cache = cache;
@@ -49,11 +51,14 @@ namespace quiz_web_app.Hubs
             _cfg = cfg;
             _mapper = mapper;
             _quizes = quizes;
+            _logger = logger;
         }
         public override Task OnConnectedAsync()
         {
             return base.OnConnectedAsync();
         }
+
+
         private async Task UserNotExists()
         {
             var message = new Message()
@@ -64,6 +69,8 @@ namespace quiz_web_app.Hubs
             };
             await Clients.Caller.ReceiveMessage(message);
         }
+
+
         public async Task InviteMates(Guid id)
         {
             var user = await _ctx.Users.Include(u => u.Group).FirstOrDefaultAsync(u => u.Id.Equals(id));
@@ -97,6 +104,8 @@ namespace quiz_web_app.Hubs
             await _cache.SetStringAsync(key, string.Empty, cacheOptions);
             await Clients.User(user.Id.ToString()).ReceiveMessage(inviteMessage);
         }
+
+
         public async Task AcceptInvite(Guid id) 
         {
             var inviterUser = await _ctx.Users.Include(u => u.Group)
@@ -158,6 +167,8 @@ namespace quiz_web_app.Hubs
             await Clients.User(currentUser.Id.ToString()).ReceiveMessage(invitedMessage);
             await Clients.User(inviterUser.Id.ToString()).ReceiveMessage(inviterMessage);
         }
+
+
         private async Task<List<UserQuizSessionInfo>?> HandleGroupOfRandoms(EnterQueueInfo info)
         {
             var currentLock = info.PeopleAmount == 2 ? _twoPeopleQueue :
@@ -192,6 +203,8 @@ namespace quiz_web_app.Hubs
                 return await HandleQueue(parameters);
             }
         }
+
+
         private async Task<List<UserQuizSessionInfo>?> HandleQueue(QueueParameters p)
         {
             p.Queue.Users.Add(p.CurrentUser);
@@ -227,7 +240,8 @@ namespace quiz_web_app.Hubs
                 return null;
             }
         }
-        public async Task CheckMyQuestion(CheckAnswerInfo info)
+
+        public async Task<AnswerInfo> CheckMyQuestion(CheckAnswerInfo info)
         {
             if (info.Answers is null)
                 throw new HubException();
@@ -266,24 +280,11 @@ namespace quiz_web_app.Hubs
                 RightAnswers = rightAnswerdIds
             };
             await _cache.SetStringAsync(userId.ToString(), JsonConvert.SerializeObject(quizSession));
-            await Clients.Caller.ReceiveAnswer(answerInfo);
-        }
-        public async Task SendAnswerToUser()
-        {
-            var userId = Guid.Parse(Context.UserIdentifier ?? throw new HubException());
-            var userQuizSession = await _cache.GetStringAsync(userId.ToString());
-            if (userQuizSession is null)
-                throw new ArgumentNullException(nameof(userQuizSession));
-            var quizSession = JsonConvert.DeserializeObject<UserQuizSessionInfo>(userQuizSession)!;
-            var completed = quizSession.Result;
-
-            var quiz = await _quizes.GetByIdAsync(completed.QuizId);
-            var quizDto = _mapper.Map<GetQuizDto>(quiz);
-            if (quizDto.QuestionsAmount == completed.Answers.Count)
+            if(quizSession.Result.Answers.Count == currentQuiz.QuestionsAmount)
             {
                 var elapsedFinally = DateTime.UtcNow - quizSession.Result.StartTime;
-                if (quizSession.Result.Score > quizDto.Award)
-                    quizSession.Result.Score = quizDto.Award;
+                if (quizSession.Result.Score > currentQuiz.Award)
+                    quizSession.Result.Score = currentQuiz.Award;
                 quizSession.Result.Elapsed = elapsedFinally;
                 quizSession.Result.Fulfilled = true;
                 var matchEndsInfo = new MatchEndsInfo()
@@ -296,39 +297,55 @@ namespace quiz_web_app.Hubs
                 await _ctx.CompletedQuizes.AddAsync(quizSession.Result);
                 await _ctx.SaveChangesAsync();
             }
-            else
-            {
-                //Так как карточки могут подгружаться из бд через include они приходят в разном порядке,
-                //поэтому важно каждый раз сортировать их, чтобы не терять порядка
-                var key = _cfg.QuizCardCachePrefix + quizDto.Id.ToString();
-                var quizesCache = await _cache.GetStringAsync(key);
-                if(quizesCache is null)
-                {
-                    var orderedQuizCards = quizDto.QuizCards.OrderBy(c => c.Name);
-                    await _cache.SetStringAsync(key, JsonConvert.SerializeObject(
-                        new CacheWrapper<IEnumerable<GetQuizCardDto>>() { Data = orderedQuizCards})
-                    );
-                    quizesCache = await _cache.GetStringAsync(key);
-                }
-                var quizes = JsonConvert.DeserializeObject<CacheWrapper<IEnumerable<GetQuizCardDto>>>
-                    (quizesCache ?? throw new HubException())!;
-                var quizCard = quizes.Data.Skip(completed.Answers.Count).Take(1).First();
-                if (completed.Answers.Count == 0)
-                    quizSession.Result.StartTime = DateTime.UtcNow;
-                var answer = new CardAnswer()
-                { 
-                   StartTime = DateTime.UtcNow,
-                   CardId = quizCard.Id,
-                   Completed = completed,
-                };
-                completed.Answers.Add(answer);
-                userQuizSession = JsonConvert.SerializeObject(quizSession);
-                await _cache.SetStringAsync(userId.ToString(), userQuizSession);
-                await Clients.User(userId.ToString()).ReceiveQuestion(quizCard);
-            }
+            return answerInfo;
         }
+
+
+        public async Task<GetQuizCardDto> SendAnswerToUser()
+        {
+            var userId = Guid.Parse(Context.UserIdentifier ?? throw new HubException());
+            var userQuizSession = await _cache.GetStringAsync(userId.ToString());
+            if (userQuizSession is null)
+                throw new ArgumentNullException(nameof(userQuizSession));
+            var quizSession = JsonConvert.DeserializeObject<UserQuizSessionInfo>(userQuizSession)!;
+            var completed = quizSession.Result;
+
+            var quiz = await _quizes.GetByIdAsync(completed.QuizId);
+            var quizDto = _mapper.Map<GetQuizDto>(quiz);
+            
+            //Так как карточки могут подгружаться из бд через include они приходят в разном порядке,
+            //поэтому важно каждый раз сортировать их, чтобы не терять порядка
+            var key = _cfg.QuizCardCachePrefix + quizDto.Id.ToString();
+            var quizesCache = await _cache.GetStringAsync(key);
+            if(quizesCache is null)
+            {
+                var orderedQuizCards = quizDto.QuizCards.OrderBy(c => c.Name);
+                await _cache.SetStringAsync(key, JsonConvert.SerializeObject(
+                    new CacheWrapper<IEnumerable<GetQuizCardDto>>() { Data = orderedQuizCards})
+                );
+                quizesCache = await _cache.GetStringAsync(key);
+            }
+            var quizes = JsonConvert.DeserializeObject<CacheWrapper<IEnumerable<GetQuizCardDto>>>
+                (quizesCache ?? throw new HubException())!;
+            var quizCard = quizes.Data.Skip(completed.Answers.Count).Take(1).First();
+            if (completed.Answers.Count == 0)
+                quizSession.Result.StartTime = DateTime.UtcNow;
+            var answer = new CardAnswer()
+            { 
+                StartTime = DateTime.UtcNow,
+                CardId = quizCard.Id,
+                Completed = completed,
+            };
+            completed.Answers.Add(answer);
+            userQuizSession = JsonConvert.SerializeObject(quizSession);
+            await _cache.SetStringAsync(userId.ToString(), userQuizSession);
+            return quizCard;
+        }
+
+
         public async Task GoToQueue(EnterQueueInfo info)
         {
+            _logger.LogInformation($"Пришла заявку на очередь от {Context.UserIdentifier}");
             if (info.PeopleAmount < 1)
                 throw new ArgumentException(nameof(info.PeopleAmount));
             if (info.PeopleAmount > 1 && info.CompetitiveType != CompetitiveType.Multi)
@@ -342,7 +359,7 @@ namespace quiz_web_app.Hubs
                 {
                     if (!Guid.TryParse(Context.UserIdentifier, out var currentUser))
                         throw new HubException();
-                    var redisQueue = new RedisQueue() { Users = new() { currentUser } };
+                    var redisQueue = new RedisQueue() { Users = new()};
                     var param = new QueueParameters()
                     {
                         Info = info,

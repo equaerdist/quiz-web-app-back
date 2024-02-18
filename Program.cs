@@ -55,7 +55,7 @@ internal class Program
       
        
         app.UseMiddleware<GlobalExceptionHandler>();
-        app.MapHub<QuizHub>("api/quiz");
+        app.MapHub<QuizHub>("api/quizHub");
         app.MapControllers();
         app.Run();
     }

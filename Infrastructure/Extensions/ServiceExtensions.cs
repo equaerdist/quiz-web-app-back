@@ -25,6 +25,7 @@ using Microsoft.AspNetCore.SignalR;
 using quiz_web_app.Hubs;
 using RedLockNet.SERedis;
 using RedLockNet.SERedis.Configuration;
+using quiz_web_app.Services.Repositories.QuizRepository;
 
 namespace quiz_web_app.Infrastructure.Extensions
 {
@@ -87,11 +88,14 @@ namespace quiz_web_app.Infrastructure.Extensions
                             .AddScoped<IEmailService, EmailService>()
                             .AddSingleton<IAmazonS3>(opt => new AmazonS3Client(credentials))
                             .AddScoped<IYAGpt, YAGptClient>()
+                            .AddScoped<IQuizRepository, QuizRepository>()
                             .AddHttpClient()
                             .AddStackExchangeRedisCache(conf =>
                             {
-                                conf.ConfigurationOptions = ConfigurationOptions.Parse(config.RedisString);
+                                conf.Configuration = config.RedisString;
+                                conf.InstanceName = "app";
                             })
+                            .AddSingleton<ConnectionMultiplexer>(opt => ConnectionMultiplexer.Connect(config.RedisString))
                             .AddSingleton<RedLockFactory>(
                                  opt => RedLockFactory.Create(
                                     new List<RedLockMultiplexer>()
@@ -100,7 +104,6 @@ namespace quiz_web_app.Infrastructure.Extensions
                                     }
                                 )
                             )
-                            .AddSingleton<IConnectionMultiplexer>(opt => ConnectionMultiplexer.Connect(config.RedisString))
                             .AddMassTransit(opt =>
                             {
                                 opt.SetKebabCaseEndpointNameFormatter();

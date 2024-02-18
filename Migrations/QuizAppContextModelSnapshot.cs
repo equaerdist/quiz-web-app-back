@@ -42,7 +42,7 @@ namespace quizwebapp.Migrations
                     b.Property<TimeSpan>("Elapsed")
                         .HasColumnType("interval");
 
-                    b.Property<DateTime>("EndTime")
+                    b.Property<DateTime>("StartTime")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("Type")
@@ -287,7 +287,7 @@ namespace quizwebapp.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid>("GroupId")
+                    b.Property<Guid?>("GroupId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Login")
@@ -426,9 +426,7 @@ namespace quizwebapp.Migrations
                 {
                     b.HasOne("Core.Models.Group", "Group")
                         .WithMany("Members")
-                        .HasForeignKey("GroupId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("GroupId");
 
                     b.Navigation("Group");
                 });

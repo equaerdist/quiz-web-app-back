@@ -39,7 +39,6 @@ namespace quiz_web_app.Services.Repositories.QuizRepository
                .Where(t => t.Mode == AccessType.Public)
                .Skip((page - 1) * pageSize)
                .Take(pageSize)
-               .Include(q => q.QuizCards)
                .ToListAsync();
 
             return quizes;
@@ -53,6 +52,9 @@ namespace quiz_web_app.Services.Repositories.QuizRepository
                 return JsonConvert.DeserializeObject<Quiz>(quizDbString)!;
             var quizDb = await _ctx.Quizes
                 .Include(q => q.QuizCards)
+                .ThenInclude(c => c.Questions)
+                .Include(q => q.QuizCards)
+                .ThenInclude(c => c.QuestionsRelationships)
                 .FirstOrDefaultAsync(q => q.Id == id && q.Mode == AccessType.Public)
                 .ConfigureAwait(false);
             if (quizDb is null)

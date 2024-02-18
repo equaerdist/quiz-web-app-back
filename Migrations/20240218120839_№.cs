@@ -5,25 +5,18 @@
 namespace quizwebapp.Migrations
 {
     /// <inheritdoc />
-    public partial class recreatedThird : Migration
+    public partial class _ : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<long>(
-                name: "Completed",
-                table: "quizes",
-                type: "bigint",
-                nullable: false,
-                defaultValue: 0L);
+
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "Completed",
-                table: "quizes");
+
         }
     }
 }

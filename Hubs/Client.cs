@@ -7,6 +7,7 @@ namespace quiz_web_app.Hubs
         Task ReceiveMessage(Message message);
         Task ReceiveQuestion(GetQuizCardDto answer);
         Task ReceiveAnswer(AnswerInfo info);
-        Task GameStarts(MatchStartsInfo info)
+        Task GameStarts(MatchStartsInfo info);
+        Task GameEnds(MatchEndsInfo info);
     }
 }

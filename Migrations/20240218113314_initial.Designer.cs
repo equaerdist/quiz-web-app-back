@@ -12,8 +12,8 @@ using quiz_web_app.Data;
 namespace quizwebapp.Migrations
 {
     [DbContext(typeof(QuizAppContext))]
-    [Migration("20240217082137_addCompetitiveType")]
-    partial class addCompetitiveType
+    [Migration("20240218113314_initial")]
+    partial class initial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -33,11 +33,11 @@ namespace quizwebapp.Migrations
                     b.Property<Guid>("CardId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime?>("CompletedEndTime")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<Guid?>("CompletedQuizId")
                         .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CompletedStartTime")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid?>("CompletedUserId")
                         .HasColumnType("uuid");
@@ -45,7 +45,7 @@ namespace quizwebapp.Migrations
                     b.Property<TimeSpan>("Elapsed")
                         .HasColumnType("interval");
 
-                    b.Property<DateTime>("EndTime")
+                    b.Property<DateTime>("StartTime")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("Type")
@@ -55,7 +55,7 @@ namespace quizwebapp.Migrations
 
                     b.HasIndex("CardId");
 
-                    b.HasIndex("CompletedQuizId", "CompletedUserId", "CompletedEndTime");
+                    b.HasIndex("CompletedQuizId", "CompletedUserId", "CompletedStartTime");
 
                     b.ToTable("CardAnswer");
                 });
@@ -68,7 +68,7 @@ namespace quizwebapp.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime>("EndTime")
+                    b.Property<DateTime>("StartTime")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("CompetitiveType")
@@ -86,11 +86,25 @@ namespace quizwebapp.Migrations
                     b.Property<int>("Score")
                         .HasColumnType("integer");
 
-                    b.HasKey("QuizId", "UserId", "EndTime");
+                    b.HasKey("QuizId", "UserId", "StartTime");
 
                     b.HasIndex("UserId");
 
                     b.ToTable("CompletedQuizes");
+                });
+
+            modelBuilder.Entity("Core.Models.Group", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Playing")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Groups");
                 });
 
             modelBuilder.Entity("Core.Models.Image", b =>
@@ -276,6 +290,9 @@ namespace quizwebapp.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid>("GroupId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Login")
                         .IsRequired()
                         .HasColumnType("text");
@@ -283,6 +300,9 @@ namespace quizwebapp.Migrations
                     b.Property<string>("Password")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<bool>("Playing")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Thumbnail")
                         .IsRequired()
@@ -292,6 +312,8 @@ namespace quizwebapp.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("GroupId");
 
                     b.ToTable("users", (string)null);
                 });
@@ -306,7 +328,7 @@ namespace quizwebapp.Migrations
 
                     b.HasOne("Core.Models.Completed", "Completed")
                         .WithMany("Answers")
-                        .HasForeignKey("CompletedQuizId", "CompletedUserId", "CompletedEndTime");
+                        .HasForeignKey("CompletedQuizId", "CompletedUserId", "CompletedStartTime");
 
                     b.Navigation("Card");
 
@@ -403,9 +425,25 @@ namespace quizwebapp.Migrations
                     b.Navigation("Creator");
                 });
 
+            modelBuilder.Entity("quiz_web_app.Models.User", b =>
+                {
+                    b.HasOne("Core.Models.Group", "Group")
+                        .WithMany("Members")
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Group");
+                });
+
             modelBuilder.Entity("Core.Models.Completed", b =>
                 {
                     b.Navigation("Answers");
+                });
+
+            modelBuilder.Entity("Core.Models.Group", b =>
+                {
+                    b.Navigation("Members");
                 });
 
             modelBuilder.Entity("Core.Models.QuizCard", b =>

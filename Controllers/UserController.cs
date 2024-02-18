@@ -22,7 +22,7 @@ namespace quiz_web_app.Controllers
             _mapper = mapper; 
         }
         [Authorize]
-        [HttpGet("{id}")]
+        [HttpGet("{id?}")]
         public async Task<IActionResult> GetUserInfo(Guid? id)
         {
             var ID  = id ?? Guid.Parse(User.Claims.First(c => c.Type.Equals(ClaimTypes.NameIdentifier)).Value);

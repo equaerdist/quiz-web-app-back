@@ -2,6 +2,6 @@
 {
     public class CacheWrapper<T>
     {
-        public T Data { get; set; } = null!;
+        public T Data { get; set; } = default(T);
     }
 }
