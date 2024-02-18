@@ -48,7 +48,7 @@ namespace quiz_web_app.Services.Repositories.QuizRepository
         {
             var cacheKey = $"{_cfg.QuizCachePrefix}{id.ToString()}";
             var quizDbString = await _cache.GetStringAsync(cacheKey);
-            if(quizDbString is not null)
+            if (quizDbString is not null)
                 return JsonConvert.DeserializeObject<Quiz>(quizDbString)!;
             var quizDb = await _ctx.Quizes
                 .Include(q => q.QuizCards)

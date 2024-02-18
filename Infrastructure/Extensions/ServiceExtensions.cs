@@ -26,6 +26,7 @@ using quiz_web_app.Hubs;
 using RedLockNet.SERedis;
 using RedLockNet.SERedis.Configuration;
 using quiz_web_app.Services.Repositories.QuizRepository;
+using Newtonsoft.Json;
 
 namespace quiz_web_app.Infrastructure.Extensions
 {
@@ -73,7 +74,10 @@ namespace quiz_web_app.Infrastructure.Extensions
             smtpClient.EnableSsl = true;
 
             var credentials = LoadSsoCredentials("default");
-            
+            JsonConvert.DefaultSettings = () => new JsonSerializerSettings()
+            { 
+                ReferenceLoopHandling  = ReferenceLoopHandling.Ignore,
+            };
             services.AddFluentEmail(config.EmailUsername, "quiz mesh application")
                             .AddRazorRenderer()
                             .AddSmtpSender(smtpClient);

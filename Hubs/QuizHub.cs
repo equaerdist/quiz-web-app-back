@@ -293,13 +293,21 @@ namespace quiz_web_app.Hubs
                     Score = quizSession.Result.Score,
                     AmountOfRightAnswers = quizSession.Result.Answers.Count(a => a.Type)
                 };
-                await Clients.Caller.GameEnds(matchEndsInfo);
-                await _ctx.CompletedQuizes.AddAsync(quizSession.Result);
-                await _ctx.SaveChangesAsync();
+                var endKey = $"{Context.UserIdentifier}_{currentQuiz.Id}";
+                await _cache.SetStringAsync(endKey, JsonConvert.SerializeObject(matchEndsInfo));
             }
             return answerInfo;
         }
 
+        public async Task<MatchEndsInfo?> GetInformationAboutQuizCompletion(Guid quizId)
+        {
+            var endKey = $"{Context.UserIdentifier}_{quizId}";
+            var resultCache = await _cache.GetStringAsync(endKey);
+            if (resultCache is null)
+                return null;
+            var matchResult = JsonConvert.DeserializeObject<MatchEndsInfo>(resultCache);
+            return matchResult;
+        }
 
         public async Task<GetQuizCardDto> SendAnswerToUser()
         {
@@ -328,6 +336,7 @@ namespace quiz_web_app.Hubs
             var quizes = JsonConvert.DeserializeObject<CacheWrapper<IEnumerable<GetQuizCardDto>>>
                 (quizesCache ?? throw new HubException())!;
             var quizCard = quizes.Data.Skip(completed.Answers.Count).Take(1).First();
+            quizCard.Award = (int)Math.Round((double)quizDto.Award / quizDto.QuestionsAmount);
             if (completed.Answers.Count == 0)
                 quizSession.Result.StartTime = DateTime.UtcNow;
             var answer = new CardAnswer()
@@ -401,12 +410,14 @@ namespace quiz_web_app.Hubs
             }
             if (sessions is not null)
             {
+                var quiz = await _quizes.GetByIdAsync(info.QuizId);
                 var usersIds = sessions.Select(u => u.Result.UserId);
                 var matchInfo = new MatchStartsInfo()
                 {
                     Users = usersIds,
                     CompetitiveType = sessions.First().Result.CompetitiveType,
-                    QuizId = sessions.First().Result.QuizId
+                    QuizId = sessions.First().Result.QuizId,
+                    AmountOfQuestion = quiz.QuestionsAmount
                 };
                 await Clients.Users(usersIds.Select(id => id.ToString())).GameStarts(matchInfo);
             }
