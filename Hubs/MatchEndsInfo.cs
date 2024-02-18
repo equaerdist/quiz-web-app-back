@@ -2,5 +2,8 @@
 {
     public class MatchEndsInfo
     {
+        public int Score { get; set; }
+        public int AmountOfRightAnswers { get; set; }
+        public TimeSpan Elapsed { get; set; }
     }
 }

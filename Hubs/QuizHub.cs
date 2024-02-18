@@ -281,8 +281,20 @@ namespace quiz_web_app.Hubs
             var quizDto = _mapper.Map<GetQuizDto>(quiz);
             if (quizDto.QuestionsAmount == completed.Answers.Count)
             {
-                var matchEndsInfo = new MatchEndsInfo();
+                var elapsedFinally = DateTime.UtcNow - quizSession.Result.StartTime;
+                if (quizSession.Result.Score > quizDto.Award)
+                    quizSession.Result.Score = quizDto.Award;
+                quizSession.Result.Elapsed = elapsedFinally;
+                quizSession.Result.Fulfilled = true;
+                var matchEndsInfo = new MatchEndsInfo()
+                {
+                    Elapsed = elapsedFinally,
+                    Score = quizSession.Result.Score,
+                    AmountOfRightAnswers = quizSession.Result.Answers.Count(a => a.Type)
+                };
                 await Clients.Caller.GameEnds(matchEndsInfo);
+                await _ctx.CompletedQuizes.AddAsync(quizSession.Result);
+                await _ctx.SaveChangesAsync();
             }
             else
             {
