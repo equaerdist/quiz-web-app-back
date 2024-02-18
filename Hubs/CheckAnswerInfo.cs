@@ -2,7 +2,6 @@
 {
     public class CheckAnswerInfo
     {
-        public Guid CardId { get; set; }
-        public List<Guid> Answers { get; set; } = null!;
+        public List<Guid>? Answers { get; set; }
     }
 }

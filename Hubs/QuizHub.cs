@@ -9,6 +9,7 @@ using MassTransit.NewIdProviders;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Query.Internal;
 using Microsoft.Extensions.Caching.Distributed;
 using Newtonsoft.Json;
 using quiz_web_app.Data;
@@ -211,7 +212,6 @@ namespace quiz_web_app.Hubs
                             UserId = p.CurrentUser,
                             Fulfilled = false,
                             Score = 0,
-                            StartTime = DateTime.UtcNow
                         }
                     };
                     await _cache.SetStringAsync(user.ToString(), JsonConvert.SerializeObject(userResult));
@@ -229,15 +229,48 @@ namespace quiz_web_app.Hubs
         }
         public async Task CheckMyQuestion(CheckAnswerInfo info)
         {
-            var answerInfo = new AnswerInfo();
-            var userSessionQuizInfo = await _cache.GetStringAsync(Context.UserIdentifier!);
-            if (userSessionQuizInfo is null)
+            if (info.Answers is null)
                 throw new HubException();
-            var userSession = JsonConvert.DeserializeObject<UserQuizSessionInfo>(userSessionQuizInfo)!;
-            var quiz = await _quizes.GetByIdAsync(userSession.Result.QuizId);
+            var userId = Context.UserIdentifier ?? throw new HubException();
+            var quizSessionCache = await _cache.GetStringAsync(userId.ToString());
+            if (quizSessionCache is null)
+                throw new HubException();
+            var quizSession = JsonConvert.DeserializeObject<UserQuizSessionInfo>(quizSessionCache)!;
+            var currentAnswer = quizSession.Result.Answers.Last();
+            var currentQuiz = await _quizes.GetByIdAsync(quizSession.Result.QuizId);
+            var answersForCheck = currentQuiz.QuizCards.First(c => c.Id.Equals(currentAnswer.CardId))
+                .QuestionsRelationships;
+            var awardForSingleCard = currentQuiz.Award / currentQuiz.QuizCards.Count;
+            var amountOfRightAnswers = 0;
+            var amountOfRightByUser = 0;
+            var rightAnswerdIds = new List<Guid>();
+            foreach(var question in answersForCheck)
+            {
+                if (question.Type)
+                {
+                    amountOfRightAnswers++;
+                    rightAnswerdIds.Add(question.QuestionId);
+                }
+                if(info.Answers.Contains(question.QuestionId) && question.Type)
+                    amountOfRightByUser++;
+            }
+            var awardForRightAnswer = (int)Math.Round((double)awardForSingleCard * amountOfRightByUser / amountOfRightAnswers);
+            currentAnswer.Type = !(awardForRightAnswer != awardForSingleCard);
+            var elapsed = DateTime.UtcNow - currentAnswer.StartTime;
+            currentAnswer.Elapsed = elapsed;
+            quizSession.Result.Score += awardForRightAnswer;
+            var answerInfo = new AnswerInfo()
+            { 
+                Award = awardForRightAnswer,
+                Elapsed = elapsed,
+                RightAnswers = rightAnswerdIds
+            };
+            await _cache.SetStringAsync(userId.ToString(), JsonConvert.SerializeObject(quizSession));
+            await Clients.Caller.ReceiveAnswer(answerInfo);
         }
-        private async Task SendAnswerToUser(Guid userId)
+        public async Task SendAnswerToUser()
         {
+            var userId = Guid.Parse(Context.UserIdentifier ?? throw new HubException());
             var userQuizSession = await _cache.GetStringAsync(userId.ToString());
             if (userQuizSession is null)
                 throw new ArgumentNullException(nameof(userQuizSession));
@@ -247,16 +280,40 @@ namespace quiz_web_app.Hubs
             var quiz = await _quizes.GetByIdAsync(completed.QuizId);
             var quizDto = _mapper.Map<GetQuizDto>(quiz);
             if (quizDto.QuestionsAmount == completed.Answers.Count)
-                await UserCompleteQuiz();
+            {
+                var matchEndsInfo = new MatchEndsInfo();
+                await Clients.Caller.GameEnds(matchEndsInfo);
+            }
             else
             {
-                var quizCard = quizDto.QuizCards.Skip(completed.Answers.Count).Take(1).First();
+                //Так как карточки могут подгружаться из бд через include они приходят в разном порядке,
+                //поэтому важно каждый раз сортировать их, чтобы не терять порядка
+                var key = _cfg.QuizCardCachePrefix + quizDto.Id.ToString();
+                var quizesCache = await _cache.GetStringAsync(key);
+                if(quizesCache is null)
+                {
+                    var orderedQuizCards = quizDto.QuizCards.OrderBy(c => c.Name);
+                    await _cache.SetStringAsync(key, JsonConvert.SerializeObject(
+                        new CacheWrapper<IEnumerable<GetQuizCardDto>>() { Data = orderedQuizCards})
+                    );
+                    quizesCache = await _cache.GetStringAsync(key);
+                }
+                var quizes = JsonConvert.DeserializeObject<CacheWrapper<IEnumerable<GetQuizCardDto>>>
+                    (quizesCache ?? throw new HubException())!;
+                var quizCard = quizes.Data.Skip(completed.Answers.Count).Take(1).First();
+                if (completed.Answers.Count == 0)
+                    quizSession.Result.StartTime = DateTime.UtcNow;
+                var answer = new CardAnswer()
+                { 
+                   StartTime = DateTime.UtcNow,
+                   CardId = quizCard.Id,
+                   Completed = completed,
+                };
+                completed.Answers.Add(answer);
+                userQuizSession = JsonConvert.SerializeObject(quizSession);
+                await _cache.SetStringAsync(userId.ToString(), userQuizSession);
                 await Clients.User(userId.ToString()).ReceiveQuestion(quizCard);
             }
-        }
-        private async Task UserCompleteQuiz()
-        {
-            throw new NotImplementedException();
         }
         public async Task GoToQueue(EnterQueueInfo info)
         {
@@ -314,7 +371,16 @@ namespace quiz_web_app.Hubs
                 sessions = await HandleQueue(param);
             }
             if (sessions is not null)
-                sessions.Select(u => u.Result.UserId).ForEach(async id => await SendAnswerToUser(id));
+            {
+                var usersIds = sessions.Select(u => u.Result.UserId);
+                var matchInfo = new MatchStartsInfo()
+                {
+                    Users = usersIds,
+                    CompetitiveType = sessions.First().Result.CompetitiveType,
+                    QuizId = sessions.First().Result.QuizId
+                };
+                await Clients.Users(usersIds.Select(id => id.ToString())).GameStarts(matchInfo);
+            }
         }
 
         public override Task OnDisconnectedAsync(Exception? exception)

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using quiz_web_app.Data;
+using System.Security.Claims;
 
 namespace quiz_web_app.Controllers
 {
@@ -21,11 +22,11 @@ namespace quiz_web_app.Controllers
             _mapper = mapper; 
         }
         [Authorize]
-        [HttpGet]
-        public async Task<IActionResult> GetUserInfo()
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetUserInfo(Guid? id)
         {
-            var login = User.Claims.First(c => c.Type.Equals("Login")).Value;
-            var user = await _ctx.Users.FirstOrDefaultAsync(u => u.Login.Equals(login)).ConfigureAwait(false);
+            var ID  = id ?? Guid.Parse(User.Claims.First(c => c.Type.Equals(ClaimTypes.NameIdentifier)).Value);
+            var user = await _ctx.Users.FirstOrDefaultAsync(u => u.Id.Equals(ID)).ConfigureAwait(false);
             var userDto = _mapper.Map<GetUserDto>(user);
             return Ok(userDto);
         }
