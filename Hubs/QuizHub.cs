@@ -14,6 +14,7 @@ using Microsoft.Extensions.Caching.Distributed;
 using Newtonsoft.Json;
 using quiz_web_app.Data;
 using quiz_web_app.Infrastructure;
+using quiz_web_app.Infrastructure.Consumers.UserCompleteQuizEventConsumer;
 using quiz_web_app.Models;
 using quiz_web_app.Services.Repositories.QuizRepository;
 using RedLockNet.SERedis;
@@ -30,6 +31,7 @@ namespace quiz_web_app.Hubs
         private readonly IMapper _mapper;
         private readonly IQuizRepository _quizes;
         private readonly ILogger<QuizHub> _logger;
+        private readonly IBus _bus;
         private readonly TimeSpan _inviteAvailableTime = TimeSpan.FromMinutes(5);
         private static readonly string _twoPeopleQueue = "queue_quiz_2";
         private static readonly string _threePeopleQueue = "queue_quiz_3";
@@ -43,7 +45,8 @@ namespace quiz_web_app.Hubs
             AppConfig cfg,
             IMapper mapper,
             IQuizRepository quizes,
-            ILogger<QuizHub> logger) 
+            ILogger<QuizHub> logger,
+            IBus bus) 
         {
             _ctx = ctx;
             _cache = cache;
@@ -52,6 +55,7 @@ namespace quiz_web_app.Hubs
             _mapper = mapper;
             _quizes = quizes;
             _logger = logger;
+            _bus = bus;
         }
         public override Task OnConnectedAsync()
         {
@@ -279,7 +283,6 @@ namespace quiz_web_app.Hubs
                 Elapsed = elapsed,
                 RightAnswers = rightAnswerdIds
             };
-            await _cache.SetStringAsync(userId.ToString(), JsonConvert.SerializeObject(quizSession));
             if(quizSession.Result.Answers.Count == currentQuiz.QuestionsAmount)
             {
                 var elapsedFinally = DateTime.UtcNow - quizSession.Result.StartTime;
@@ -295,7 +298,14 @@ namespace quiz_web_app.Hubs
                 };
                 var endKey = $"{Context.UserIdentifier}_{currentQuiz.Id}";
                 await _cache.SetStringAsync(endKey, JsonConvert.SerializeObject(matchEndsInfo));
+                var message = new UserCompleteQuizEvent()
+                {
+                    UserId = Guid.Parse(userId),
+                    QuizId = quizSession.Result.QuizId
+                };
+                await _bus.Publish(message);
             }
+            await _cache.SetStringAsync(userId.ToString(), JsonConvert.SerializeObject(quizSession));
             return answerInfo;
         }
 
@@ -334,13 +344,13 @@ namespace quiz_web_app.Hubs
                 quizesCache = await _cache.GetStringAsync(key);
             }
             var quizes = JsonConvert.DeserializeObject<CacheWrapper<IEnumerable<GetQuizCardDto>>>
-                (quizesCache ?? throw new HubException())!;
+            (quizesCache ?? throw new HubException())!;
             var quizCard = quizes.Data.Skip(completed.Answers.Count).Take(1).First();
             quizCard.Award = (int)Math.Round((double)quizDto.Award / quizDto.QuestionsAmount);
             if (completed.Answers.Count == 0)
                 quizSession.Result.StartTime = DateTime.UtcNow;
             var answer = new CardAnswer()
-            { 
+            {
                 StartTime = DateTime.UtcNow,
                 CardId = quizCard.Id,
                 Completed = completed,

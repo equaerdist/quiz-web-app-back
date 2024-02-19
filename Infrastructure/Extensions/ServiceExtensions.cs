@@ -27,6 +27,7 @@ using RedLockNet.SERedis;
 using RedLockNet.SERedis.Configuration;
 using quiz_web_app.Services.Repositories.QuizRepository;
 using Newtonsoft.Json;
+using quiz_web_app.Infrastructure.Consumers.UserCompleteQuizEventConsumer;
 
 namespace quiz_web_app.Infrastructure.Extensions
 {
@@ -113,6 +114,7 @@ namespace quiz_web_app.Infrastructure.Extensions
                                 opt.SetKebabCaseEndpointNameFormatter();
                                 opt.AddConsumer<QuizCreatedEventConsumer>(x => x.UseMessageRetry(t => t.Interval(2, 700)));
                                 opt.AddConsumer<UserRegisteredEventConsumer>(x => x.UseMessageRetry(t => t.Interval(2, 1000)));
+                                opt.AddConsumer<UserCompleteQuizEventConsumer>(x => x.UseMessageRetry(t => t.Interval(2, 1000)));
                                 opt.UsingRabbitMq((ctx, cfg) =>
                                 {
                                     cfg.Host(config.RabbitHost, h =>
@@ -120,7 +122,21 @@ namespace quiz_web_app.Infrastructure.Extensions
                                         h.Username(config.RabbitUser);
                                         h.Password(config.RabbitPassword);
                                     });
-                                   
+                                    cfg.Publish<UserCompleteQuizEvent>(opt =>
+                                    {
+                                        opt.Durable = true;
+                                        opt.AutoDelete = true;
+                                    });
+                                    cfg.Message<UserCompleteQuizEvent>(x => x.SetEntityName("user_complete_quiz"));
+                                    cfg.ReceiveEndpoint("single-queue", options =>
+                                    {
+                                        options.ConfigureConsumeTopology = false;
+                                        options.Bind("user_complete_quiz", x =>
+                                        {
+                                            x.Durable = true;
+                                        });
+                                        options.ConfigureConsumer<UserCompleteQuizEventConsumer>(ctx);
+                                    });
                                     cfg.ConfigureEndpoints(ctx);
                                 });
                             }).AddMassTransitHostedService();
