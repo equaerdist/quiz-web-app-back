@@ -28,6 +28,7 @@ using RedLockNet.SERedis.Configuration;
 using quiz_web_app.Services.Repositories.QuizRepository;
 using Newtonsoft.Json;
 using quiz_web_app.Infrastructure.Consumers.UserCompleteQuizEventConsumer;
+using quiz_web_app.Services.KeyResolver;
 
 namespace quiz_web_app.Infrastructure.Extensions
 {
@@ -86,6 +87,7 @@ namespace quiz_web_app.Infrastructure.Extensions
                             .AddScoped<ITokenDistributor, TokenDistributor>()
                             .AddDbContext<QuizAppContext>()
                             .AddValidation()
+                            .AddSingleton<IKeyResolver, KeyResolver>()
                             .AddSingleton<IUserIdProvider, CustomUserIdProvider>()
                             .AddTransient<GlobalExceptionHandler>()
                             .AddAutoMapper(typeof(MapperProfiles.MapperProfiles))
@@ -122,18 +124,19 @@ namespace quiz_web_app.Infrastructure.Extensions
                                         h.Username(config.RabbitUser);
                                         h.Password(config.RabbitPassword);
                                     });
+                                    cfg.Message<UserCompleteQuizEvent>(x => x.SetEntityName("user_complete_quiz"));
                                     cfg.Publish<UserCompleteQuizEvent>(opt =>
                                     {
                                         opt.Durable = true;
                                         opt.AutoDelete = true;
                                     });
-                                    cfg.Message<UserCompleteQuizEvent>(x => x.SetEntityName("user_complete_quiz"));
                                     cfg.ReceiveEndpoint("single-queue", options =>
                                     {
                                         options.ConfigureConsumeTopology = false;
                                         options.Bind("user_complete_quiz", x =>
                                         {
                                             x.Durable = true;
+                                            x.AutoDelete = true;
                                         });
                                         options.ConfigureConsumer<UserCompleteQuizEventConsumer>(ctx);
                                     });

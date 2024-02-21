@@ -7,6 +7,7 @@ using quiz_web_app.Data;
 using quiz_web_app.Infrastructure;
 using quiz_web_app.Infrastructure.Exceptions;
 using quiz_web_app.Models;
+using quiz_web_app.Services.KeyResolver;
 
 namespace quiz_web_app.Services.Repositories.QuizRepository
 {
@@ -15,13 +16,17 @@ namespace quiz_web_app.Services.Repositories.QuizRepository
         private readonly QuizAppContext _ctx;
         private readonly IDistributedCache _cache;
         private readonly AppConfig _cfg;
+        private readonly IKeyResolver _keyResolver;
 
-        public QuizRepository(QuizAppContext ctx, IDistributedCache cache,
-            AppConfig cfg)
+        public QuizRepository(QuizAppContext ctx, 
+            IDistributedCache cache,
+            AppConfig cfg,
+            IKeyResolver keyResolver)
         {
             _ctx = ctx;
             _cache = cache;
             _cfg = cfg;
+            _keyResolver = keyResolver;
         }
         public Task<Quiz> AddAsync(Quiz entity)
         {
@@ -46,7 +51,7 @@ namespace quiz_web_app.Services.Repositories.QuizRepository
 
         public async Task<Quiz> GetByIdAsync(Guid id)
         {
-            var cacheKey = $"{_cfg.QuizCachePrefix}{id.ToString()}";
+            var cacheKey = _keyResolver.GetQuizKey(id);
             var quizDbString = await _cache.GetStringAsync(cacheKey);
             if (quizDbString is not null)
                 return JsonConvert.DeserializeObject<Quiz>(quizDbString)!;
