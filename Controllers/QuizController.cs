@@ -42,10 +42,14 @@ namespace quiz_web_app.Controllers
             {
                 var quiz = quizes[i];
                 var completedQuizes = _ctx.CompletedQuizes
-                    .Where(q => q.QuizId == quiz.Id && q.Raiting != null)
-                    .GroupBy(q => q.UserId)
-                    .Select(q => q.First().Raiting);
-                result[i].Raiting = completedQuizes.Average() ?? 0;
+                    .Where(q => q.QuizId == quiz.Id)
+                    .GroupBy(q => q.UserId);
+
+
+                var raiting = await completedQuizes.Select(q => q.First().Raiting).AverageAsync();
+                var completed = await completedQuizes.CountAsync();
+                result[i].Raiting = raiting ?? 0;
+                result[i].Completed = completed;
             }
             return result;
         }
