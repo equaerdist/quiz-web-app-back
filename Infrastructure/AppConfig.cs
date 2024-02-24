@@ -24,10 +24,13 @@
         public string RabbitPassword { get; set; } = null!;
         public string RabbitUser { get; set; } = null!; 
         public string RedisString { get; set; } = null!;
-        public string QuizCardCachePrefix { get; set; } = "quizCard";
-        public string QuizCachePrefix { get; set; } = "quiz";
-        public string MatchEndsCachePrefix { get; set; } = "matchEnds";
-        public string UserSessionPrefix { get; set; } = "userSession";
-        public string GroupSessionPrefix { get; set; } = "groupSession";
+        public string QuizCardCachePrefix { get;} = "quizCard";
+        public string QuizCachePrefix { get;  } = "quiz";
+        public string MatchEndsCachePrefix { get; } = "matchEnds";
+        public string UserSessionPrefix { get;  } = "userSession";
+        public string GroupSessionPrefix { get;  } = "groupSession"; 
+        public readonly string TwoPeopleQueue = "queue_quiz_2";
+        public readonly string ThreePeopleQueue = "queue_quiz_3";
+        public readonly string FourPeopleQueue = "queue_quiz_4";
     }
 }

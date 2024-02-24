@@ -7,6 +7,7 @@
         string GetUserMatchResultKey(Guid userId, Guid quizId);
         string GetQuizKey(Guid quizId);
         string GetGroupSessionKey(Guid sessionId);
+        string GetQuizQueueLock(int peopleAmount, Guid quizId);
      
     }
 }

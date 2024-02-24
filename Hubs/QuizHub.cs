@@ -19,6 +19,7 @@ using quiz_web_app.Models;
 using quiz_web_app.Services.KeyResolver;
 using quiz_web_app.Services.Repositories.QuizRepository;
 using RedLockNet.SERedis;
+using static quiz_web_app.Hubs.Button;
 
 namespace quiz_web_app.Hubs
 {
@@ -35,12 +36,11 @@ namespace quiz_web_app.Hubs
         private readonly IBus _bus;
         private readonly IKeyResolver _keyResolver;
         private readonly TimeSpan _inviteAvailableTime = TimeSpan.FromMinutes(5);
-        private static readonly string _twoPeopleQueue = "queue_quiz_2";
-        private static readonly string _threePeopleQueue = "queue_quiz_3";
-        private static readonly string _fourPeopleQueue = "queue_quiz_4";
+        private static readonly string _startInfo = "queue_information";
         private static readonly TimeSpan _lockTime = TimeSpan.FromSeconds(1);
-        private static readonly TimeSpan _wait = TimeSpan.FromSeconds(10);
+        private static readonly TimeSpan _wait = TimeSpan.FromHours(1);
         private static readonly TimeSpan _retry = TimeSpan.FromSeconds(1);
+        private static readonly TimeSpan _cancelTime = TimeSpan.FromSeconds(1);
         public QuizHub(QuizAppContext ctx, 
             IDistributedCache cache, 
             RedLockFactory redLock,
@@ -51,6 +51,7 @@ namespace quiz_web_app.Hubs
             IBus bus,
             IKeyResolver keyResolver) 
         {
+            #region инициализация сервисов
             _ctx = ctx;
             _cache = cache;
             _redLock = redLock;
@@ -60,6 +61,8 @@ namespace quiz_web_app.Hubs
             _logger = logger;
             _bus = bus;
             _keyResolver = keyResolver;
+            #endregion
+           
         }
         public override Task OnConnectedAsync()
         {
@@ -102,7 +105,15 @@ namespace quiz_web_app.Hubs
             { 
                 Content = $"Вас пригласил в группу пользователь {Context.UserIdentifier}",
                 Type = MessageType.Error,
-                NotifyType = NotifyType.Main
+                NotifyType = NotifyType.Main,
+                Buttons = new() 
+                { 
+                    new() { 
+                            Content = "Принять",
+                            Action = "AcceptInvite",
+                            TransferInfo = Context.UserIdentifier
+                        }
+                }
             };
             var key = $"{Context.UserIdentifier}_{id}";
             var cacheOptions = new DistributedCacheEntryOptions()
@@ -112,8 +123,7 @@ namespace quiz_web_app.Hubs
             await _cache.SetStringAsync(key, string.Empty, cacheOptions);
             await Clients.User(user.Id.ToString()).ReceiveMessage(inviteMessage);
         }
-
-
+        
         public async Task AcceptInvite(Guid id) 
         {
             var inviterUser = await _ctx.Users.Include(u => u.Group)
@@ -131,7 +141,7 @@ namespace quiz_web_app.Hubs
                 {
                     Content = $"Приглашение пользователя {id} истекло",
                     Type = MessageType.Error,
-                    NotifyType = NotifyType.Main
+                    NotifyType = NotifyType.Main,
                 };
                 await Clients.Caller.ReceiveMessage(message);
                 return;
@@ -176,47 +186,73 @@ namespace quiz_web_app.Hubs
             await Clients.User(inviterUser.Id.ToString()).ReceiveMessage(inviterMessage);
         }
 
-
-        private async Task<List<UserQuizSessionInfo>?> HandleGroupOfRandoms(EnterQueueInfo info)
+        public async Task CancelQueue()
         {
-            var currentLock = info.PeopleAmount == 2 ? _twoPeopleQueue :
-            info.PeopleAmount == 3 ? _threePeopleQueue : _fourPeopleQueue;
-            currentLock += info.QuizId;
-            using var redlock = await _redLock.CreateLockAsync(currentLock, 
-                _lockTime, _wait, _retry);
-
-            if (!redlock.IsAcquired)
-                throw new Exception();
-
-            var queue = await _cache.GetStringAsync(currentLock);
-            if (!Guid.TryParse(Context.UserIdentifier, out var currentUser))
-                throw new HubException();
-
-            if (queue is null)
+            
+            if (!Guid.TryParse(Context.UserIdentifier, out var userId))
+                return;
+            _logger.LogInformation($"Вызвана отмена поиска для {userId}");
+            if (!(Context.Items[_startInfo] is QueueStatus status))
+                return;
+            var queueKey = _keyResolver.GetQuizQueueLock(status.EnterQueueInfo.PeopleAmount, status.EnterQueueInfo.QuizId);
+            if (status.Token is not null)
+                status.Token.Cancel();
+            using var redisLock = await _redLock.CreateLockAsync(queueKey, _lockTime, _cancelTime, _retry);
+            if (!redisLock.IsAcquired)
+                return;
+            var cachedQueue = await _cache.GetStringAsync(queueKey);
+            if (cachedQueue is null)
+                return;
+           
+            var queue = JsonConvert.DeserializeObject<RedisQueue>(cachedQueue)!;
+            queue.Users.Remove(userId);
+            await _cache.SetStringAsync(queueKey, JsonConvert.SerializeObject(queue));
+        }
+        private async Task<List<UserQuizSessionInfo>?> HandleGroupOfRandoms(EnterQueueInfo info, CancellationToken token = default)
+        {
+            var currentLock = _keyResolver.GetQuizQueueLock(info.PeopleAmount, info.QuizId);
+            try
             {
-                var redisQueue = new RedisQueue() { Users = new() { currentUser } };
-                queue = JsonConvert.SerializeObject(redisQueue);
-                await _cache.SetStringAsync(currentLock, queue);
-                return null;
-            }
-            else
-            {
-                var redisQueue = JsonConvert.DeserializeObject<RedisQueue>(queue)!;
-                var parameters = new QueueParameters() 
-                { 
-                    Info = info, 
-                    Queue = redisQueue,
-                    CurrentQueue = currentLock, 
-                    CurrentUser = currentUser 
-                };
-                var sessions = await HandleQueue(parameters);
-                if(sessions is not null)
+                using var redlock = await _redLock.CreateLockAsync(currentLock,
+                    _lockTime, _wait, _retry, token);
+
+                if (!redlock.IsAcquired)
+                    throw new Exception();
+
+                var queue = await _cache.GetStringAsync(currentLock);
+                if (!Guid.TryParse(Context.UserIdentifier, out var currentUser))
+                    throw new HubException();
+
+                if (queue is null)
                 {
-                    var emptyQueue = new RedisQueue() { Users = new() };
-                    await _cache.SetStringAsync(currentLock, 
-                        JsonConvert.SerializeObject(emptyQueue));
+                    var redisQueue = new RedisQueue() { Users = new() { currentUser } };
+                    queue = JsonConvert.SerializeObject(redisQueue);
+                    await _cache.SetStringAsync(currentLock, queue);
+                    return null;
                 }
-                return sessions;
+                else
+                {
+                    var redisQueue = JsonConvert.DeserializeObject<RedisQueue>(queue)!;
+                    var parameters = new QueueParameters()
+                    {
+                        Info = info,
+                        Queue = redisQueue,
+                        CurrentQueue = currentLock,
+                        CurrentUser = currentUser
+                    };
+                    var sessions = await HandleQueue(parameters);
+                    if (sessions is not null)
+                    {
+                        var emptyQueue = new RedisQueue() { Users = new() };
+                        await _cache.SetStringAsync(currentLock,
+                            JsonConvert.SerializeObject(emptyQueue));
+                    }
+                    return sessions;
+                }
+            }
+            catch(OperationCanceledException)
+            {
+                return null;
             }
         }
 
@@ -238,7 +274,7 @@ namespace quiz_web_app.Hubs
                         {
                             QuizId = p.Info.QuizId,
                             CompetitiveType = p.Info.CompetitiveType,
-                            UserId = p.CurrentUser,
+                            UserId = user,
                             Fulfilled = false,
                             Score = 0,
                         }
@@ -391,6 +427,8 @@ namespace quiz_web_app.Hubs
         public async Task GoToQueue(EnterQueueInfo info)
         {
             _logger.LogInformation($"Пришла заявку на очередь от {Context.UserIdentifier}");
+            var queueEntryInformation = new QueueStatus() { EnterQueueInfo = info, Token = info.PeopleAmount != 1 ? new () : null };
+            Context.Items[_startInfo] = queueEntryInformation;
             if (info.PeopleAmount < 1)
                 throw new ArgumentException(nameof(info.PeopleAmount));
             if (info.PeopleAmount > 1 && info.CompetitiveType != CompetitiveType.Multi)
@@ -399,7 +437,7 @@ namespace quiz_web_app.Hubs
             if (!info.WithGroup)
             {
                 if (info.PeopleAmount != 1)
-                    sessions = await HandleGroupOfRandoms(info);
+                    sessions = await HandleGroupOfRandoms(info, queueEntryInformation.Token!.Token);
                 else
                 {
                     if (!Guid.TryParse(Context.UserIdentifier, out var currentUser))
@@ -459,6 +497,14 @@ namespace quiz_web_app.Hubs
                     QuizId = sessions.First().Result.QuizId,
                     AmountOfQuestion = quiz.QuestionsAmount
                 };
+                if (info.PeopleAmount != 1)
+                {
+                    var status = Context.Items[_startInfo] as QueueStatus;
+                    if (status is null)
+                        throw new ArgumentNullException();
+                    status.Token?.Dispose();
+                    status.Token = null;
+                }
                 _logger.LogInformation($"начал игру для окружения пользователя {Context.UserIdentifier}");
                 await Clients.Users(usersIds.Select(id => id.ToString())).GameStarts(matchInfo);
             }
