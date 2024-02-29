@@ -45,15 +45,15 @@ internal class Program
         app.UseRouting();
 
         app.UseCors(options => options
-            .WithOrigins("http://localhost:5173")
+            .WithOrigins("https://localhost:5173", "http://localhost")
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials());
         app.UseSerilogRequestLogging();
         app.UseAuthentication();
         app.UseAuthorization();
-      
-       
+     
+
         app.UseMiddleware<GlobalExceptionHandler>();
         app.MapHub<QuizHub>("api/quizHub");
         app.MapControllers();

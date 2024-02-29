@@ -425,7 +425,32 @@ namespace quizwebapp.Migrations
                         .WithMany("Members")
                         .HasForeignKey("GroupId");
 
+                    b.OwnsOne("Core.Models.RefreshToken", "RefreshToken", b1 =>
+                        {
+                            b1.Property<Guid>("UserId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<DateTime>("Created")
+                                .HasColumnType("timestamp with time zone");
+
+                            b1.Property<DateTime>("Expires")
+                                .HasColumnType("timestamp with time zone");
+
+                            b1.Property<string>("Token")
+                                .IsRequired()
+                                .HasColumnType("text");
+
+                            b1.HasKey("UserId");
+
+                            b1.ToTable("users");
+
+                            b1.WithOwner()
+                                .HasForeignKey("UserId");
+                        });
+
                     b.Navigation("Group");
+
+                    b.Navigation("RefreshToken");
                 });
 
             modelBuilder.Entity("Core.Models.Completed", b =>

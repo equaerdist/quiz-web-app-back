@@ -39,6 +39,7 @@ namespace quiz_web_app.Controllers
         private readonly IMapper _mapper;
         private readonly IHasher _hasher;
         private readonly IBus _bus;
+        private readonly AppConfig _cfg;
 
         public AuthController(ILogger<AuthController> logger,
             ITokenDistributor tdk,
@@ -46,7 +47,8 @@ namespace quiz_web_app.Controllers
             QuizAppContext ctx,
             IMapper mapper,
             IHasher hasher,
-            IBus bus)
+            IBus bus,
+            AppConfig cfg)
         {
             _logger = logger;
             _tdk = tdk;
@@ -55,6 +57,7 @@ namespace quiz_web_app.Controllers
             _mapper = mapper;
             _hasher = hasher;
             _bus = bus;
+            _cfg = cfg;
         }
         [HttpPost("register")]
         public async Task<IActionResult> GetRegisterAsync(UserDto information)
@@ -90,25 +93,45 @@ namespace quiz_web_app.Controllers
             await _bus.Publish(new UserRegisteredEvent() { EmailOptions = emailOptions });
             return Ok("Подтвердите почту для активации аккаунта");
         }
-
-        [HttpPost("token")]
-        public async Task<IActionResult> GetToken(UserDto information)
+        private List<Claim>? GetUserClaims(User user)
         {
-            var user = await _ctx.Users.FirstOrDefaultAsync(u => u.Login.Equals(information.Login)).ConfigureAwait(false);
+            var claims = new List<Claim>()
+            {
+                new Claim("Confirmed", user.Accepted ? "True" : "False"),
+                new Claim("Login", user.Login),
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString())
+            };
+            return claims;
+        }
+        [HttpPost()]
+        public async Task<IActionResult> GetAuthentification(UserDto information)
+        {
+            var user = await _ctx.Users.FirstOrDefaultAsync(u => u.Login.Equals(information.Login))
+                .ConfigureAwait(false);
             if (user is null)
                 throw new BaseQuizAppException("Такого пользователя не существует");
             var passwordConfirm = await _hasher.VerifyHashAsync(information.Password, user.Password).ConfigureAwait(false);
             if (passwordConfirm is false)
                 throw new BaseQuizAppException("Проверьте правильность введенных данных");
-            var claims = new List<Claim>()
-            { 
-                new Claim("Confirmed", user.Accepted ? "True" : "False"),
-                new Claim("Login", user.Login),
-                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString())
-            };
+            var claims = GetUserClaims(user);
             var token = _tdk.GetToken(claims);
-            Response.Cookies.Append("Authorization", token, new() { Expires = DateTime.Now.AddDays(1), HttpOnly = true });
-            return Ok();
+            var refreshToken = string.Empty;
+            if (user.RefreshToken is null || user.RefreshToken.Expires < DateTime.UtcNow)
+            {
+                var newRefreshToken = _tdk.GetRefreshToken();
+                refreshToken = newRefreshToken.Token;
+                user.RefreshToken = newRefreshToken;
+                await _ctx.SaveChangesAsync();
+            }
+            else
+                refreshToken = user.RefreshToken.Token;
+            var authData = new AuthData()
+            {
+                Token = token.token,
+                Expires = token.ExpiresTime,
+                RefreshToken = refreshToken
+            };
+            return Ok(authData);
         }
         [HttpGet("accept")]
         public async Task<IActionResult> AcceptAccount(Guid id)
@@ -119,8 +142,30 @@ namespace quiz_web_app.Controllers
             await _ctx.SaveChangesAsync();
             return Ok($"Аккаунт для пользователя {user.Login} успешно активирован");
         }
-        [Authorize]
-        [HttpGet("check")]
-        public IActionResult CheckAuth() => Ok();
+
+        [HttpGet("refreshToken")]
+        public async Task<IActionResult> RefreshToken()
+        {
+            string? refreshToken = Request.Headers[_cfg.RefreshAlias];
+            string? jwt = Request.Headers[_cfg.AuthorizationAlias];
+            if (refreshToken is null || jwt is null)
+                throw new BaseQuizAppException("Refresh токен не был найден");
+            var userId = Guid.Parse(await _tdk.GetUserIdentifier(jwt));
+            var user = await _ctx.Users.FirstOrDefaultAsync(u => u.Id.Equals(userId));
+            if (user is null || user.RefreshToken is null)
+                throw new BaseQuizAppException("Авторизации для пользователя не было проведено");
+            var userRefreshToken = user.RefreshToken;
+            if (userRefreshToken.Token != refreshToken || userRefreshToken.Expires < DateTime.UtcNow)
+                throw new BaseQuizAppException("Refresh token оказался невалидным. Требуется повторная аутентификация");
+            var claims = GetUserClaims(user);
+            var jwtTemporaryToken = _tdk.GetToken(claims);
+            AuthData data = new()
+            {
+                Token = jwtTemporaryToken.token,
+                Expires = jwtTemporaryToken.ExpiresTime
+            };
+            return Ok(data);
+            
+        }
     }
 }

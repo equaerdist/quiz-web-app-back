@@ -61,7 +61,7 @@ namespace quiz_web_app.Infrastructure.Extensions
                 {
                     OnMessageReceived = context =>
                     {
-                        context.Token = context.Request.Cookies["Authorization"];
+                        context.Token = context.Request.Headers[config.AuthorizationAlias];
                         return Task.CompletedTask;
                     }
                 };

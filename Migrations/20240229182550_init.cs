@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace quizwebapp.Migrations
 {
     /// <inheritdoc />
-    public partial class initial : Migration
+    public partial class init : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -73,7 +73,10 @@ namespace quizwebapp.Migrations
                     Thumbnail = table.Column<string>(type: "text", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     Accepted = table.Column<bool>(type: "boolean", nullable: false),
-                    GroupId = table.Column<Guid>(type: "uuid", nullable: false),
+                    RefreshTokenToken = table.Column<string>(name: "RefreshToken_Token", type: "text", nullable: true),
+                    RefreshTokenCreated = table.Column<DateTime>(name: "RefreshToken_Created", type: "timestamp with time zone", nullable: true),
+                    RefreshTokenExpires = table.Column<DateTime>(name: "RefreshToken_Expires", type: "timestamp with time zone", nullable: true),
+                    GroupId = table.Column<Guid>(type: "uuid", nullable: true),
                     Playing = table.Column<bool>(type: "boolean", nullable: false)
                 },
                 constraints: table =>
@@ -83,8 +86,7 @@ namespace quizwebapp.Migrations
                         name: "FK_users_Groups_GroupId",
                         column: x => x.GroupId,
                         principalTable: "Groups",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        principalColumn: "Id");
                 });
 
             migrationBuilder.CreateTable(
@@ -186,18 +188,19 @@ namespace quizwebapp.Migrations
                 name: "CompletedQuizes",
                 columns: table => new
                 {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
                     UserId = table.Column<Guid>(type: "uuid", nullable: false),
                     QuizId = table.Column<Guid>(type: "uuid", nullable: false),
-                    StartTime = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     Score = table.Column<int>(type: "integer", nullable: false),
                     Elapsed = table.Column<TimeSpan>(type: "interval", nullable: false),
                     Fulfilled = table.Column<bool>(type: "boolean", nullable: false),
+                    StartTime = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     Raiting = table.Column<int>(type: "integer", nullable: true),
                     CompetitiveType = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_CompletedQuizes", x => new { x.QuizId, x.UserId, x.StartTime });
+                    table.PrimaryKey("PK_CompletedQuizes", x => x.Id);
                     table.ForeignKey(
                         name: "FK_CompletedQuizes_quizes_QuizId",
                         column: x => x.QuizId,
@@ -242,9 +245,6 @@ namespace quizwebapp.Migrations
                 {
                     CompletedId = table.Column<Guid>(type: "uuid", nullable: false),
                     CardId = table.Column<Guid>(type: "uuid", nullable: false),
-                    CompletedQuizId = table.Column<Guid>(type: "uuid", nullable: true),
-                    CompletedUserId = table.Column<Guid>(type: "uuid", nullable: true),
-                    CompletedStartTime = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     Type = table.Column<bool>(type: "boolean", nullable: false),
                     Elapsed = table.Column<TimeSpan>(type: "interval", nullable: false),
                     StartTime = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
@@ -253,10 +253,11 @@ namespace quizwebapp.Migrations
                 {
                     table.PrimaryKey("PK_CardAnswer", x => new { x.CompletedId, x.CardId });
                     table.ForeignKey(
-                        name: "FK_CardAnswer_CompletedQuizes_CompletedQuizId_CompletedUserId_~",
-                        columns: x => new { x.CompletedQuizId, x.CompletedUserId, x.CompletedStartTime },
+                        name: "FK_CardAnswer_CompletedQuizes_CompletedId",
+                        column: x => x.CompletedId,
                         principalTable: "CompletedQuizes",
-                        principalColumns: new[] { "QuizId", "UserId", "StartTime" });
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
                         name: "FK_CardAnswer_quiz_cards_CardId",
                         column: x => x.CardId,
@@ -271,9 +272,9 @@ namespace quizwebapp.Migrations
                 column: "CardId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_CardAnswer_CompletedQuizId_CompletedUserId_CompletedStartTi~",
-                table: "CardAnswer",
-                columns: new[] { "CompletedQuizId", "CompletedUserId", "CompletedStartTime" });
+                name: "IX_CompletedQuizes_QuizId",
+                table: "CompletedQuizes",
+                column: "QuizId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_CompletedQuizes_UserId",

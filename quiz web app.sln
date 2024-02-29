@@ -9,6 +9,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Internal", "..\Internal\Int
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Core", "..\Core\Core.csproj", "{8D5AD3B6-3CDB-4642-903B-A256BCA45172}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReverseProxy", "..\ReverseProxy\ReverseProxy.csproj", "{2444D5C9-6AA0-43E7-9381-0CC28268B82A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{8D5AD3B6-3CDB-4642-903B-A256BCA45172}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8D5AD3B6-3CDB-4642-903B-A256BCA45172}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8D5AD3B6-3CDB-4642-903B-A256BCA45172}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2444D5C9-6AA0-43E7-9381-0CC28268B82A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2444D5C9-6AA0-43E7-9381-0CC28268B82A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2444D5C9-6AA0-43E7-9381-0CC28268B82A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2444D5C9-6AA0-43E7-9381-0CC28268B82A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -32,5 +32,10 @@
         public readonly string TwoPeopleQueue = "queue_quiz_2";
         public readonly string ThreePeopleQueue = "queue_quiz_3";
         public readonly string FourPeopleQueue = "queue_quiz_4";
+        public readonly TimeSpan RefreshTokenExpiresTime = TimeSpan.FromDays(7);
+        public readonly TimeSpan TokenExpiresTime = TimeSpan.FromDays(1);
+        public readonly int AmountOfKeyBytes = 64;
+        public readonly string RefreshAlias = "RefreshToken";
+        public readonly string AuthorizationAlias = "Authorization";
     }
 }

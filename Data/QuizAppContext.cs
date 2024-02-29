@@ -38,6 +38,9 @@ namespace quiz_web_app.Data
                         .HasKey(u => u.Id);
 
             modelBuilder.Entity<User>()
+                .OwnsOne(u => u.RefreshToken);
+
+            modelBuilder.Entity<User>()
                         .ToTable("users");
 
             modelBuilder.Entity<User>()
